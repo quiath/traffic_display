@@ -1,0 +1,12 @@
+{
+"tiles_hor": 4,
+"tiles_ver": 4,
+"tiles_size": 128,
+"check_freq": 120,
+"win_w": 800,
+"win_h": 600,
+"app_id": "PUT_YOUR_APP_ID_HERE",
+"app_code": "PUT_YOUR_APP_CODE_HERE",
+"origin": [13,4092,2723]
+}
+    
