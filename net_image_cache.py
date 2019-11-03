@@ -18,11 +18,13 @@ class ImageCache:
                  tiletype = "traffictile", 
                  imgdir = "images", 
                  refresh_s = 600,
+                 global_indexing = False,
                  proxies = {}):
         self.imgdir = imgdir
         self.proxies = proxies
         self.tsw = tsw
         self.tsh = tsh
+        self.global_indexing = global_indexing
         if tiletype in ImageCache.types:
             self.tiletype = tiletype
         else:
@@ -51,8 +53,8 @@ class ImageCache:
         except:
             return False
         z = r.content        
-        print(len(z), type(z))
-        print(z[0], z[1], z[2])
+        print("Received length and type", len(z), type(z))
+        #print(z[0], z[1], z[2])
         
         with open(filename, "wb") as f:
             f.write(z)
@@ -77,15 +79,20 @@ class ImageCache:
                 if os.path.isfile(fn) and os.path.getsize(fn) > 0:
                     modtime = os.path.getmtime(fn)
                     utctime = time.time()
-                    print(fn, modtime, utctime, utctime - modtime)
+                    print("File: {} local ts: {:.0f} UTC ts: {:.0f} last modified ago: {:.0f}".format(fn, modtime, utctime, utctime - modtime))
                     has_data = utctime - modtime < self.refresh_s
-                    if updated_only and has_data:
+                    if updated_only and has_data and not self.global_indexing:
                         continue
     
                 if not has_data:
                     has_data = self.file_from_uri(self.template.format(x=x, y=y, z=z), fn)
-                if has_data:
-                    d[(x - x0, y - y0)] = fn
+                    
+                if self.global_indexing:
+                    d[(z, x, y)] = (fn, has_data)
+                else:
+                    if has_data:
+                        d[(x - x0, y - y0)] = fn    
+                   
     
         return d
 
