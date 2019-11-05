@@ -84,11 +84,12 @@ class ImageCache:
                     if updated_only and has_data and not self.global_indexing:
                         continue
     
+                had_data = has_data
                 if not has_data:
                     has_data = self.file_from_uri(self.template.format(x=x, y=y, z=z), fn)
                     
                 if self.global_indexing:
-                    d[(z, x, y)] = (fn, has_data)
+                    d[(z, x, y)] = (fn, had_data)
                 else:
                     if has_data:
                         d[(x - x0, y - y0)] = fn    

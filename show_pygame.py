@@ -49,102 +49,114 @@ def read_config_json():
             
     return d
 
-    
-def render_info(mysurf, font, last_refreshed, origin, view_ofs_x, view_ofs_y):
 
-    lastm = int(time.time() - last_refreshed)
-    lasts = lastm % 60
-    lastm = lastm // 60
+class MapDisplay:
+    def __init__(self, config, targetsurf, font):
+        self.mysurf = targetsurf
+        
+        self.TW, self.TH = config["tiles_hor"], config["tiles_ver"]
+        self.TS = config["tiles_size"]
+        self.CHECK_EVERY_N_FRAMES = config["check_every_n_frames"]
+        
+        self.origin = config["origin"]
+        self.refresh_s = config.get("refresh_s", 600)
+        self.view_ofs_x, self.view_ofs_y = 0, 0  
+        self.last_refreshed = time.time()
+        self.map_screen_tile_to_name = {}
+        self.total_loops = 0
+        
+        self.tiledsurf = pygame.Surface((self.TW * self.TS, self.TH * self.TS), depth=32)
+        self.font = font
+        self.cache = ImageCache(self.TW, self.TH, config, tilesize = self.TS, refresh_s = self.refresh_s,
+                       global_indexing = True)
+        
+        self.move_flag = False
+        
+    def render_info(self):
     
-    rendered_text = font.render(
-            "last refreshed {:02d}m{:02d}s ago ".format(
-                    lastm, lasts),
-            True, (64, 0, 64))            
+        lastm = int(time.time() - self.last_refreshed)
+        lasts = lastm % 60
+        lastm = lastm // 60
+        
+        rendered_text = self.font.render(
+                "last refreshed {:02d}m{:02d}s ago ".format(
+                        lastm, lasts),
+                True, (64, 0, 64))            
+        
+        self.mysurf.blit(rendered_text, (self.view_ofs_x, self.view_ofs_y))
     
-    mysurf.blit(rendered_text, (view_ofs_x, view_ofs_y))
-
-    rendered_text = font.render(
-            "Origin: {}".format(tuple(origin)),
-            True, (64, 0, 64))            
-    
-    mysurf.blit(rendered_text, (view_ofs_x, view_ofs_y + FONTSIZE))    
+        rendered_text = self.font.render(
+                "Origin: {}".format(tuple(self.origin)),
+                True, (64, 0, 64))            
+        
+        self.mysurf.blit(rendered_text, (self.view_ofs_x, self.view_ofs_y + FONTSIZE))    
 
 
-def move_origin(evt, TW, TH, origin):
-    if evt.type == pygame.KEYDOWN:
-        if evt.key == pygame.K_RIGHT:
-            origin[1] += 1
-        elif evt.key == pygame.K_LEFT:
-            origin[1] -= 1                
-        elif evt.key == pygame.K_DOWN:
-            origin[2] += 1
-        elif evt.key == pygame.K_UP:
-            origin[2] -= 1     
-        elif evt.key == pygame.K_PAGEUP:
-            origin[0] += 1    
-            origin[1] = (origin[1] + TW // 2) * 2 - TW // 2
-            origin[2] = (origin[2] + TH // 2) * 2 - TH // 2
-        elif evt.key == pygame.K_PAGEDOWN:
-            origin[0] -= 1    
-            origin[1] = (origin[1] + TW // 2) // 2 - TW // 2
-            origin[2] = (origin[2] + TH // 2) // 2 - TH // 2
+    def process_event(self, evt):
+        TW, TH = self.TW, self.TH
+        if evt.type == pygame.KEYDOWN:
+            self.move_flag = True
+            if evt.key == pygame.K_RIGHT:
+                self.origin[1] += 1
+            elif evt.key == pygame.K_LEFT:
+                self.origin[1] -= 1                
+            elif evt.key == pygame.K_DOWN:
+                self.origin[2] += 1
+            elif evt.key == pygame.K_UP:
+                self.origin[2] -= 1     
+            elif evt.key == pygame.K_PAGEUP:
+                self.origin[0] += 1    
+                self.origin[1] = (self.origin[1] + TW // 2) * 2 - TW // 2
+                self.origin[2] = (self.origin[2] + TH // 2) * 2 - TH // 2
+            elif evt.key == pygame.K_PAGEDOWN:
+                self.origin[0] -= 1    
+                self.origin[1] = (self.origin[1] + TW // 2) // 2 - TW // 2
+                self.origin[2] = (self.origin[2] + TH // 2) // 2 - TH // 2
 
             
-def update(origin, map_screen_tile_to_name, last_refreshed, TS, TW, TH, total_loops, cache, tiledsurf):            
-    traffic_d = cache.get_tiles(origin, total_loops > 0)
-    if any(not x[1] for x in traffic_d.values()) or total_loops == 0:
-        last_refreshed = time.time()
-             
-    for y in range(TH):
-        for x in range(TW):    
-            tile_zxy = (origin[0], origin[1] + x, origin[2] + y)
+    def update(self):        
+        if self.total_loops % self.CHECK_EVERY_N_FRAMES == 0 or self.move_flag:
 
-            if tile_zxy in traffic_d:
-                rfn, rdata = traffic_d[tile_zxy]
-                #print(rfn, rdata, map_screen_tile_to_name.get((x, y), ""))
-                if rdata and rfn == map_screen_tile_to_name.get((x, y), ""):
-                    continue
+            TW, TH, TS = self.TW, self.TH, self.TS
+            traffic_d = self.cache.get_tiles(self.origin, self.total_loops > 0)
+            if any(not x[1] for x in traffic_d.values()) or self.total_loops == 0:
+                self.last_refreshed = time.time()
+            self.total_loops += 1
                 
-                map_screen_tile_to_name[(x, y)] = rfn
-                try:
-                    surf = pygame.image.load(rfn)
-                    tiledsurf.blit(surf, (x * TS, y * TS))
-                except:
-                    print("Error while parsing image", rfn)
-                    pass
-    
-    return last_refreshed 
-
+            for y in range(TH):
+                for x in range(TW):    
+                    tile_zxy = (self.origin[0], self.origin[1] + x, self.origin[2] + y)
+        
+                    if tile_zxy in traffic_d:
+                        rfn, rdata = traffic_d[tile_zxy]
+                        #print(rfn, rdata, map_screen_tile_to_name.get((x, y), ""))
+                        if rdata and rfn == self.map_screen_tile_to_name.get((x, y), ""):
+                            continue
+                        
+                        self.map_screen_tile_to_name[(x, y)] = rfn
+                        try:
+                            surf = pygame.image.load(rfn)
+                            self.tiledsurf.blit(surf, (x * TS, y * TS))
+                        except:
+                            print("Error while parsing image", rfn)
+                            pass
+                        
+        self.total_loops += 1
+        self.move_flag = False
+        self.mysurf.blit(self.tiledsurf, (self.view_ofs_x, self.view_ofs_y))
     
 def main():
 
     config = read_config_json()
     
-    TW, TH = config["tiles_hor"], config["tiles_ver"]
-    TS = config["tiles_size"]
-    CHECK_EVERY_N_FRAMES = config["check_every_n_frames"]
-
     WINW, WINH = config["win_w"], config["win_h"]
     
-    origin = config["origin"]
-    refresh_s = config.get("refresh_s", 600)
-
     # pygame
     os.environ['SDL_VIDEO_CENTERED'] = '1'
     pygame.init()    
     clock = pygame.time.Clock()
     running = True
     total_time = 0
-    total_loops = 0
-
-    
-    cache = ImageCache(TW, TH, config, tilesize = TS, refresh_s = refresh_s,
-                       global_indexing = True)
-
-    
-    view_ofs_x, view_ofs_y = 0, 0
-    
-    last_refreshed = 0
     
     try:
         screen = pygame.display.set_mode((WINW, WINH))
@@ -153,14 +165,9 @@ def main():
     
         font = pygame.font.Font(None, FONTSIZE)
     
-        tiledsurf = pygame.Surface((TW * TS, TH * TS), depth=32)
-    
         mysurf = pygame.Surface((WINW, WINW), depth=32)
-        #myrect = mysurf.get_rect()
-    
-        #mysurf.fill((255, 255, 255))
         
-        map_screen_tile_to_name = {}
+        map_disp = MapDisplay(config, mysurf, font)
        
         while running:
             mysurf.fill((0, 0, 0)) 
@@ -173,18 +180,15 @@ def main():
                     running = False
                     break                
                 
-                move_origin(evt, TW, TH, origin)
+                map_disp.process_event(evt)
                 
-            if total_loops % CHECK_EVERY_N_FRAMES == 0:
-                last_refreshed = update(origin, map_screen_tile_to_name, last_refreshed, TS, TW, TH, total_loops, cache, tiledsurf)
+            map_disp.update()
                 
-            mysurf.blit(tiledsurf, (view_ofs_x, view_ofs_y))
-            
-            render_info(mysurf, font, last_refreshed, origin, view_ofs_x, view_ofs_y)
+            map_disp.render_info()
     
             screen.blit(mysurf, (0, 0))
             pygame.display.flip()
-            total_loops += 1
+
             
     finally:
         #time.sleep(1)
