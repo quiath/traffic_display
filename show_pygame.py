@@ -8,6 +8,7 @@ Created on Fri Oct 18 22:59:56 2019
 import os
 import json
 import time
+from collections import namedtuple
 
 import pygame
 import pygame.image
@@ -17,6 +18,7 @@ import pygame.joystick
 from net_image_cache import ImageCache
 
 FONTSIZE = 32
+Evt = namedtuple("Evt", "type, key")         
 
 def read_config_json():
     defaults = {
@@ -113,7 +115,34 @@ class MapDisplay:
                 self.origin[1] = (self.origin[1] + TW // 2) // 2 - TW // 2
                 self.origin[2] = (self.origin[2] + TH // 2) // 2 - TH // 2
 
-            
+    def process_joy(self, joy):    
+        if not joy:
+            return
+        b = [ joy.get_button(i) for i in range(joy.get_numbuttons()) ]
+
+       
+        evt = None
+        
+        if b[0]: 
+            evt = Evt(pygame.KEYDOWN, pygame.K_PAGEUP)    
+        if b[1]:
+            evt = Evt(pygame.KEYDOWN, pygame.K_PAGEDOWN)    
+
+        if joy.get_numaxes() >= 2:
+            z = [ int(joy.get_axis(i) + 2.5) - 2 for i in range(2) ]
+            if z[0] == 1:
+                evt = Evt(pygame.KEYDOWN, pygame.K_RIGHT)        
+            elif z[0] == -1:
+                evt = Evt(pygame.KEYDOWN, pygame.K_LEFT)        
+            if z[1] == 1:
+                evt = Evt(pygame.KEYDOWN, pygame.K_DOWN)        
+            elif z[1] == -1:
+                evt = Evt(pygame.KEYDOWN, pygame.K_UP)        
+
+        if evt:
+            self.process_event(evt)
+        
+        
     def update(self):        
         if self.total_loops % self.CHECK_EVERY_N_FRAMES == 0 or self.move_flag:
 
@@ -154,6 +183,14 @@ def main():
     # pygame
     os.environ['SDL_VIDEO_CENTERED'] = '1'
     pygame.init()    
+    pygame.joystick.init()
+    
+    joy = None
+    if pygame.joystick.get_count() > 0:
+        joy = pygame.joystick.Joystick(0)
+        joy.init()
+        #axes = joy.get_numaxes()    
+    
     clock = pygame.time.Clock()
     running = True
     total_time = 0
@@ -181,6 +218,7 @@ def main():
                     break                
                 
                 map_disp.process_event(evt)
+                map_disp.process_joy(joy)
                 
             map_disp.update()
                 
