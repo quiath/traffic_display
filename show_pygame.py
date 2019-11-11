@@ -72,7 +72,10 @@ class MapDisplay:
         self.cache = ImageCache(self.TW, self.TH, config, tilesize = self.TS, refresh_s = self.refresh_s,
                        global_indexing = True)
         
-        self.move_flag = False
+        # set this at start to show something while the initial update
+        self.move_flag = True
+        # used for displaying the info about the update in progress
+        self.need_update_flag = False
         
     def render_info(self):
     
@@ -92,6 +95,12 @@ class MapDisplay:
                 True, (64, 0, 64))            
         
         self.mysurf.blit(rendered_text, (self.view_ofs_x, self.view_ofs_y + FONTSIZE))    
+        
+        if self.need_update_flag:
+            rendered_text = self.font.render(
+                    "Updating in progress...",
+                    True, (64, 0, 64))                        
+            self.mysurf.blit(rendered_text, (self.view_ofs_x, self.view_ofs_y + 2 * FONTSIZE))    
 
 
     def process_event(self, evt):
@@ -144,13 +153,16 @@ class MapDisplay:
         
         
     def update(self):        
-        if self.total_loops % self.CHECK_EVERY_N_FRAMES == 0 or self.move_flag:
-
+        if (self.total_loops % self.CHECK_EVERY_N_FRAMES == 0 or 
+            self.move_flag) and not self.need_update_flag:
+            self.need_update_flag = True
+        elif self.need_update_flag:
+            self.need_update_flag = False
             TW, TH, TS = self.TW, self.TH, self.TS
             traffic_d = self.cache.get_tiles(self.origin, self.total_loops > 0)
             if any(not x[1] for x in traffic_d.values()) or self.total_loops == 0:
                 self.last_refreshed = time.time()
-            self.total_loops += 1
+            #self.total_loops += 1
                 
             for y in range(TH):
                 for x in range(TW):    
